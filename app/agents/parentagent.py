@@ -6,6 +6,8 @@ from typing import Dict, List, Any, Optional, TypedDict, Annotated
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode
 from langchain.output_parsers import PydanticOutputParser
+from pydantic_core import PydanticUndefined
+
 
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from langchain.chat_models import init_chat_model
@@ -130,19 +132,41 @@ class GitHubAgentWorkflow:
         
         return workflow.compile()
 
-    def _extract_github_info(self, text: str) -> Dict[str, Optional[str]]:
-        """Extract GitHub repository information from text"""
-        # Pattern to match GitHub URLs
-        github_pattern = r'(?:https?://)?(?:www\.)?github\.com/([^/]+)/([^/\s]+?)(?:/|$|\s)'
-        match = re.search(github_pattern, text)
+    def _extract_github_info(self, query: str) -> Dict[str, str]:
+        """Extract GitHub repository information from query with proper sanitization"""
+        repo_info = {}
+        
+        # First, try to extract from URL pattern
+        url_pattern = r'https?://github\.com/([a-zA-Z0-9\-_]+)/([a-zA-Z0-9\-_\.]+)'
+        match = re.search(url_pattern, query)
         
         if match:
-            return {
-                "owner": match.group(1),
-                "repo": match.group(2).rstrip('.git'),
-                "url": f"https://github.com/{match.group(1)}/{match.group(2).rstrip('.git')}"
-            }
-        return {"owner": None, "repo": None, "url": None}
+            owner = match.group(1)
+            repo = match.group(2)
+            
+            # Remove any trailing punctuation from repo name
+            repo = re.sub(r'[?!.:;,]*$', '', repo)
+            
+            repo_info["repo_owner"] = owner
+            repo_info["repo_name"] = repo
+            repo_info["github_repo_url"] = f"https://github.com/{owner}/{repo}"
+        
+        # If no URL found, try to extract owner/repo pattern
+        if not repo_info:
+            owner_repo_pattern = r'([a-zA-Z0-9\-_]+)/([a-zA-Z0-9\-_\.]+)'
+            match = re.search(owner_repo_pattern, query)
+            if match:
+                owner = match.group(1)
+                repo = match.group(2)
+                
+                # Remove any trailing punctuation
+                repo = re.sub(r'[?!.:;,]*$', '', repo)
+                
+                repo_info["repo_owner"] = owner
+                repo_info["repo_name"] = repo
+                repo_info["github_repo_url"] = f"https://github.com/{owner}/{repo}"
+        
+        return repo_info
 
     def _parse_planner_response(self, response_content: str) -> Dict:
         """Robustly parse the planner's JSON response with multiple fallbacks"""
@@ -221,7 +245,9 @@ class GitHubAgentWorkflow:
         
         # Use the output parser's format instructions in the prompt
         # format_instructions = self.output_parser.get_format_instructions()
-        
+        owner = github_info.get("repo_owner", "Not provided")
+        repo = github_info.get("repo_name", "Not provided")
+        repo_url = github_info.get("github_repo_url", "Not provided")
         if state.get("github_repo_url"):
             github_info = self._extract_github_info(state["github_repo_url"])
         
@@ -274,8 +300,9 @@ class GitHubAgentWorkflow:
         try:
             response = self.llm.invoke(planner_prompt.format_messages(
             query=state["user_query"],
-            owner=github_info["owner"] or "Not provided",
-            repo=github_info["repo"] or "Not provided"
+            owner=owner,
+            repo=repo,
+            repo_url=repo_url
         ))
         
             logger.debug(f"Raw planner response: {response.content}")
@@ -348,14 +375,14 @@ class GitHubAgentWorkflow:
                 "execution_plan": execution_plan,
                 "task_queue": task_queue,
                 "current_task_index": 0,
-                "repo_owner": github_info["owner"],
-                "repo_name": github_info["repo"],
-                "github_repo_url": github_info["url"],
+                "repo_owner": github_info["repo_owner"],
+                "repo_name": github_info["repo_name"],
+                "github_repo_url": github_info["github_repo_url"],
                 "task_results": {},
                 "shared_context": {
-                    "repo_owner": github_info["owner"],
-                    "repo_name": github_info["repo"],
-                    "repo_url": github_info["url"]
+                    "repo_owner": github_info["repo_owner"],
+                    "repo_name": github_info["repo_name"],
+                    "repo_url": github_info["github_repo_url"]
                 },
                 "execution_status": {},
                 "is_complete": False,
@@ -441,26 +468,36 @@ class GitHubAgentWorkflow:
             params["pr_number"] = int(pr_match.group(1))
             
         # Extract file paths
-        file_match = re.search(r'(?:file\s*(?:called\s*)?["\']([^"\']+)["\']|([a-zA-Z0-9_.-]+\.[a-zA-Z]+))', user_query)
+        file_match = re.search(r'(?:file\s*(?:called\s*)?["\']([^"\']+)[\'"]|([a-zA-Z0-9_.-]+\.[a-zA-Z]+))', user_query)
         if file_match:
             params["path"] = file_match.group(1) or file_match.group(2)
             
         # Extract search queries
         if "search" in task_description.lower():
-            search_match = re.search(r'["\']([^"\']+)["\']', user_query)
+            search_match = re.search(r'["\']([^"\']+)[\'"]', user_query)
             if search_match:
                 params["query"] = search_match.group(1)
                 
+        # Extract file content (handles multi-line content)
+        content_match = re.search(r'with\s+content\s+(["\'])([\s\S]*?)\1', user_query)
+        if content_match:
+            params["content"] = content_match.group(2)
+        
+        # Extract commit message
+        message_match = re.search(r'(?:with\s+message|commit\s+message)\s+(["\'])([\s\S]*?)\1', user_query)
+        if message_match:
+            params["message"] = message_match.group(2)
+        
         # Extract comments
         if "comment" in task_description.lower():
-            comment_match = re.search(r'saying\s*["\']([^"\']+)["\']', user_query)
+            comment_match = re.search(r'saying\s*["\']([^"\']+)[\'"]', user_query)
             if comment_match:
                 params["comment"] = comment_match.group(1)
                 
         return params
 
     def _task_executor(self, state: AgentState) -> Dict[str, Any]:
-        """Enhanced task executor with better parameter handling"""
+        """Enhanced task executor with better parameter handling and proper repository configuration"""
         logger.info("Starting enhanced task executor")
         
         task_queue = state["task_queue"]
@@ -500,12 +537,11 @@ class GitHubAgentWorkflow:
             # Mark task as in progress
             execution_status[task_id] = TaskStatus.IN_PROGRESS.value
             
-            # CRITICAL: Configure GitHub wrapper with correct repository FIRST
+            # CRITICAL: Get repository context for this task
+            repo_name = None
             if "repo_owner" in shared_context and "repo_name" in shared_context:
-                # Get a wrapper instance and configure it with the repository
-                wrapper = get_wrapper()
-                wrapper.github_repository = f"{shared_context['repo_owner']}/{shared_context['repo_name']}"
-                logger.info(f"Configured GitHub wrapper for repository: {wrapper.github_repository}")
+                repo_name = f"{shared_context['repo_owner']}/{shared_context['repo_name']}"
+                logger.info(f"Using repository context: {repo_name}")
             
             # Get the tool instance
             if tool_name_normalized not in self.tool_map:
@@ -518,26 +554,104 @@ class GitHubAgentWorkflow:
                     "current_task_index": current_index + 1
                 }
             
-            tool = self.tool_map[tool_name_normalized]
+            # CRITICAL: Create a new tool instance with the correct repository context
+            if repo_name:
+                tool = self.tool_map[tool_name_normalized].__class__(
+                    github_api_wrapper=get_wrapper(repo=repo_name)
+                )
+            else:
+                tool = self.tool_map[tool_name_normalized]
             
             # Extract parameters from user query and shared context
             params = self._extract_parameters_from_query(
                 state["user_query"], 
                 current_task["task_description"]
             )
+            logger.debug(f"Extracted parameters before mapping: {params}")
             
             # Add repository context to parameters (for tools that need it)
             if "repo_owner" in shared_context and shared_context["repo_owner"]:
                 params["owner"] = shared_context["repo_owner"]
             if "repo_name" in shared_context and shared_context["repo_name"]:
                 params["repo"] = shared_context["repo_name"]
-            
+                
             # Add shared context parameters
             if "issue_number" in shared_context:
                 params["issue_number"] = shared_context["issue_number"]
             if "pr_number" in shared_context:
                 params["pr_number"] = shared_context["pr_number"]
+                
+            PARAM_NAME_MAPPING = {
+                # For Create Pull Request tool
+                "create_pull_request": {
+                    "description": "body",
+                    "from_branch": "head",
+                    "to_branch": "base",
+                    "source_branch": "head",
+                    "target_branch": "base"
+                },
+                # For Comment tool
+                "comment_on_issue": {
+                    "text": "comment"
+                },
+                # CRITICAL: For Create File tool - map to actual parameter names
+                "create_file": {
+                    "path": "file_path",
+                    "message": "commit_message"
+                }
+            }
+        
+            # Apply parameter name mapping if available for this tool
+            if tool_name_normalized in PARAM_NAME_MAPPING:
+                tool_mapping = PARAM_NAME_MAPPING[tool_name_normalized]
+                mapped_params = params.copy()
+                for source_name, target_name in tool_mapping.items():
+                    if source_name in mapped_params and target_name not in mapped_params:
+                        mapped_params[target_name] = mapped_params[source_name]
+                        del mapped_params[source_name]
+                params = mapped_params
+                logger.debug(f"Parameters after mapping: {params}")
+                
+            # For commenting
+            if tool_name_normalized == "comment_on_issue":
+                if "comment" not in params:
+                    task_desc = current_task["task_description"]
+                    comment_match = re.search(r"Comment\s+'([^']+)'", task_desc)
+                    if comment_match:
+                        params["comment"] = comment_match.group(1)
+                    else:
+                        quoted_match = re.search(r"'([^']+)'", task_desc)
+                        if quoted_match:
+                            params["comment"] = quoted_match.group(1)
             
+            # Add extraction for branch information for file operations
+            if tool_name_normalized in ["read_file", "list_pull_request_files", "create_file", "update_file", "delete_file"]:
+                # Extract branch from query if specified
+                branch_match = re.search(r'from\s+branch\s+["\']?([a-zA-Z0-9\-_/.]+)["\']?', state["user_query"].lower())
+                if branch_match:
+                    params["branch"] = branch_match.group(1)
+                # Default to 'main' if no branch specified
+                elif "branch" not in params:
+                    params["branch"] = "main"
+                    
+            # Ensure required parameters for file operations
+            if tool_name_normalized in ["create_file", "update_file", "delete_file"]:
+                # Set default commit message if not provided
+                if "commit_message" not in params:
+                    file_path = params.get('file_path', 'file')
+                    file_name = os.path.basename(file_path)
+                    if tool_name_normalized == "create_file":
+                        params["commit_message"] = f"Create {file_name}"
+                    elif tool_name_normalized == "update_file":
+                        params["commit_message"] = f"Update {file_name}"
+                    elif tool_name_normalized == "delete_file":
+                        params["commit_message"] = f"Delete {file_name}"
+                
+                # For create_file specifically, ensure content is provided
+                if tool_name_normalized == "create_file" and "content" not in params:
+                    # Use a fallback message if content wasn't extracted
+                    params["content"] = "# File created by AI assistant"
+
             # Execute the tool
             try:
                 if hasattr(tool.args_schema, 'model_fields') and tool.args_schema.model_fields:
@@ -546,6 +660,21 @@ class GitHubAgentWorkflow:
                     for field_name in tool.args_schema.model_fields.keys():
                         if field_name in params:
                             filtered_params[field_name] = params[field_name]
+                        else:
+                            # Use default value if available
+                            field = tool.args_schema.model_fields[field_name]
+                            if field.default is not None and field.default != PydanticUndefined:
+                                filtered_params[field_name] = field.default
+                                logger.info(f"Using default value for '{field_name}': {field.default}")
+                            else:
+                                logger.warning(f"Required parameter '{field_name}' not found for {tool_name_normalized}")
+                    
+                    # Ensure we have all required parameters
+                    required_fields = [f for f, v in tool.args_schema.model_fields.items() if v.is_required()]
+                    missing_fields = [f for f in required_fields if f not in filtered_params]
+                    if missing_fields:
+                        logger.error(f"Missing required parameters for {tool_name_normalized}: {missing_fields}")
+                    
                     result = tool.run(filtered_params)
                 else:
                     # Tool has no parameters
@@ -585,29 +714,6 @@ class GitHubAgentWorkflow:
                 "current_task_index": current_index + 1,
                 "execution_status": execution_status
             }
-
-    def _update_shared_context(self, shared_context: Dict[str, Any], tool_name: str, result: Any):
-        """Update shared context based on tool results"""
-        if tool_name == "get_issue" and isinstance(result, dict):
-            shared_context["current_issue"] = result
-            if "number" in result:
-                shared_context["issue_number"] = result["number"]
-                
-        elif tool_name == "get_pull_request" and isinstance(result, dict):
-            shared_context["current_pr"] = result
-            if "number" in result:
-                shared_context["pr_number"] = result["number"]
-                
-        elif tool_name == "read_file" and isinstance(result, dict):
-            shared_context["file_content"] = result
-            
-        elif tool_name == "search_issues_and_prs" and isinstance(result, list) and result:
-            shared_context["search_results"] = result
-            # Get the most recent issue/PR for potential follow-up actions
-            if result:
-                shared_context["latest_search_result"] = result[0]
-                if "number" in result[0]:
-                    shared_context["issue_number"] = result[0]["number"]
 
     def _execution_checker(self, state: AgentState) -> Dict[str, Any]:
         """Check if all tasks in the queue are completed"""
@@ -832,30 +938,34 @@ def test_enhanced_github_workflow():
     workflow = GitHubAgentWorkflow()
     
     test_queries = [
-        {
-            "query": "What is issue number 3275 on https://github.com/microsoft/vscode?",
-            "description": "Single issue lookup with URL"
-        },
-        # {
-        #     "query": "Show me all open issues in the repository",
-        #     "repo_url": "https://github.com/microsoft/vscode",
-        #     "description": "List all issues"
-        # },
-        {
-            "query": "Find all issues related to 'performance' and show me the first 5",
-            "repo_url": "https://github.com/microsoft/vscode",
-            "description": "Search and filter issues"
-        },
-        # {
-        #     "query": "Read the contents of README.md file",
-        #     "repo_url": "https://github.com/microsoft/vscode",
-        #     "description": "File reading"
-        # },
-        {
-            "query": "Show me what files changed in PR #156",
-            "repo_url": "https://github.com/microsoft/vscode", 
-            "description": "PR file analysis"
-        }
+
+    
+    
+    # {
+    #     "query": "Create a new file 'docs/contributing.md' with content '# Contributing Guidelines\n\nPlease follow these guidelines when contributing to the project.'",
+    #     "repo_url": "https://github.com/microsoft/vscode",
+    #     "description": "Create new file"
+    # },
+    # {
+    #     "query": "Update the file 'src/index.js' with new content 'console.log(\"Hello World\");'",
+    #     "repo_url": "https://github.com/microsoft/vscode",
+    #     "description": "Update existing file"
+    # },
+    # {
+    #     "query": "Delete the file 'temp/deprecated.js'",
+    #     "repo_url": "https://github.com/microsoft/vscode",
+    #     "description": "Delete file"
+    # },
+    
+    # {
+    #     "query": "Show me all files in the 'feature/new-ui' branch",
+    #     "repo_url": "https://github.com/microsoft/vscode",
+    #     "description": "List files in specific branch"
+    # },
+    
+    
+    
+        
     ]
     
     for i, test_case in enumerate(test_queries):

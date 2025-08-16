@@ -88,3 +88,6 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg 
+
+#files
+agents.test_GITHUB.txt

@@ -1,0 +1,100 @@
+## NOT WORKING TEST CASES
+
+    {
+        "query": "Comment on issue #477 with 'This is a helpful comment about the bug' on https://github.com/microsoft/vscode",
+         "repo_url": "https://github.com/microsoft/vscode",
+         "description": "Add comment to issue"
+    },
+    {
+         "query": "Create a pull request titled 'Fix performance bug' with description 'This fixes the memory leak issue', from branch 'fix/performance' to 'main'",
+         "repo_url": "https://github.com/microsoft/vscode",
+         "description": "Create pull request"
+    },
+
+## WORKING TEST CASES
+test_queries = [
+    # Issue Tools
+    {
+        "query": "What is issue number 3275 on https://github.com/microsoft/vscode?",
+        "description": "Single issue lookup with URL"
+    },
+    {
+        "query": "Show me all open issues in the microsoft/vscode repository",
+        "repo_url": "https://github.com/microsoft/vscode",
+        "description": "List all open issues"
+    },
+    
+    {
+        "query": "Find all issues related to 'performance' and show me the first 5",
+        "repo_url": "https://github.com/microsoft/vscode",
+        "description": "Search and filter issues"
+    },
+    
+    # Pull Request Tools
+    {
+        "query": "Show me all open pull requests in the microsoft/vscode repository",
+        "repo_url": "https://github.com/microsoft/vscode",
+        "description": "List open pull requests"
+    },
+    {
+        "query": "What is the status of pull request #156 on https://github.com/microsoft/vscode?",
+        "description": "Get pull request details"
+    },
+    
+    {
+        "query": "Show me what files changed in PR #261874 in the microsoft/vscode repository",
+        "repo_url": "https://github.com/microsoft/vscode",
+        "description": "PR file analysis"
+    },
+]
+
+## PENDING
+
+# File Tools
+    {
+        "query": "Read the contents of README.md file",
+        "repo_url": "https://github.com/microsoft/vscode",
+        "description": "Read file contents"
+    },
+    {
+        "query": "Create a new file 'docs/contributing.md' with content '# Contributing Guidelines\n\nPlease follow these guidelines when contributing to the project.'",
+        "repo_url": "https://github.com/microsoft/vscode",
+        "description": "Create new file"
+    },
+    {
+        "query": "Update the file 'src/index.js' with new content 'console.log(\"Hello World\");'",
+        "repo_url": "https://github.com/microsoft/vscode",
+        "description": "Update existing file"
+    },
+    {
+        "query": "Delete the file 'temp/deprecated.js'",
+        "repo_url": "https://github.com/microsoft/vscode",
+        "description": "Delete file"
+    },
+    {
+        "query": "List all files in the main branch of the repository",
+        "repo_url": "https://github.com/microsoft/vscode",
+        "description": "List files in main branch"
+    },
+    {
+        "query": "Show me all files in the 'feature/new-ui' branch",
+        "repo_url": "https://github.com/microsoft/vscode",
+        "description": "List files in specific branch"
+    },
+    
+    # Edge cases
+    {
+        "query": "Show me issues related to 'memory leak' in the last 30 days",
+        "repo_url": "https://github.com/microsoft/vscode",
+        "description": "Time-based issue search"
+    },
+    {
+        "query": "Read the contents of 'src/utils/helpers.js' from the 'develop' branch",
+        "repo_url": "https://github.com/microsoft/vscode",
+        "description": "Read file from specific branch"
+    },
+    {
+        "query": "List all closed pull requests",
+        "repo_url": "https://github.com/microsoft/vscode",
+        "description": "List closed PRs"
+    }
