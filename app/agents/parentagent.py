@@ -4,7 +4,7 @@
 import os
 from typing import Dict, List, Any, Optional, TypedDict, Annotated
 from langgraph.graph import StateGraph, START, END
-from langgraph.prebuilt import ToolNode
+from langgraph.prebuilt.tool_node import ToolNode
 from langchain.output_parsers import PydanticOutputParser
 from pydantic_core import PydanticUndefined
 

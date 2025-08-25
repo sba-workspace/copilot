@@ -15,36 +15,36 @@
 test_queries = [
     # Issue Tools
     {
-        "query": "What is issue number 3275 on https://github.com/microsoft/vscode?",
-        "description": "Single issue lookup with URL"
+        "query": "What is issue number 3275",
+        
     },
     {
-        "query": "Show me all open issues in the microsoft/vscode repository",
-        "repo_url": "https://github.com/microsoft/vscode",
-        "description": "List all open issues"
+        "query": "Show me all open issues in the  repository",
+        
     },
     
     {
         "query": "Find all issues related to 'performance' and show me the first 5",
-        "repo_url": "https://github.com/microsoft/vscode",
-        "description": "Search and filter issues"
+        
     },
     
     # Pull Request Tools
     {
-        "query": "Show me all open pull requests in the microsoft/vscode repository",
-        "repo_url": "https://github.com/microsoft/vscode",
-        "description": "List open pull requests"
+        "query": "Show me all open pull requests in the repository",
+        
     },
     {
-        "query": "What is the status of pull request #156 on https://github.com/microsoft/vscode?",
-        "description": "Get pull request details"
+        "query": "What is the status of pull request #1368 ",
+        but status is not shown??
     },
     
     {
-        "query": "Show me what files changed in PR #261874 in the microsoft/vscode repository",
-        "repo_url": "https://github.com/microsoft/vscode",
-        "description": "PR file analysis"
+        "query": "Show me what files changed in PR #1371 in the repository",
+        
+    },
+    {
+        "query": "Show me issues related to 'memory leak' in the last 30 days",
+        "description": "Time-based issue search"
     },
 ]
 
@@ -83,18 +83,12 @@ test_queries = [
     },
     
     # Edge cases
-    {
-        "query": "Show me issues related to 'memory leak' in the last 30 days",
-        "repo_url": "https://github.com/microsoft/vscode",
-        "description": "Time-based issue search"
-    },
+    
     {
         "query": "Read the contents of 'src/utils/helpers.js' from the 'develop' branch",
-        "repo_url": "https://github.com/microsoft/vscode",
         "description": "Read file from specific branch"
     },
     {
         "query": "List all closed pull requests",
-        "repo_url": "https://github.com/microsoft/vscode",
         "description": "List closed PRs"
     }
