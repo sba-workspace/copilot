@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os
-from app.agents.parent_agent import GitHubAgentWorkflow
+from app.agents.parent_agent import MultiServiceAgentWorkflow
 from dotenv import load_dotenv
 
 load_dotenv()  # Load environment variables from .env file
@@ -26,8 +26,8 @@ missing_vars = [var for var in required_env_vars if not os.getenv(var)]
 if missing_vars:
     raise RuntimeError(f"Missing required environment variables: {', '.join(missing_vars)}")
 
-# Initialize the GitHub agent workflow
-workflow = GitHubAgentWorkflow()
+# Initialize the multi-service agent workflow
+workflow = MultiServiceAgentWorkflow()
 
 class ChatRequest(BaseModel):
     query: str

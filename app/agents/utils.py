@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional, List, Dict, Any, TypedDict
+from typing import Optional, List, Dict, Any, TypedDict,Annotated
 from pydantic import BaseModel, Field
 
 class TaskStatus(Enum):
@@ -23,7 +23,7 @@ class AgentState(TypedDict):
     user_query: str
     github_repo_url: Optional[str]
     # Planning - Updated structure to match your requirements
-    execution_plan: Dict[str, Dict[str, Dict[str, str]]]  # {"github": {"tool_name": {"task_key": "task_description"}}}
+    execution_plan: Dict[str, Dict[str, Dict[str, str]]]  # {"github": {"tool_name": {"task_key": "task_description"}}, "notion": {...}}
     current_service: Optional[str]
     current_tool: Optional[str]
     current_task_key: Optional[str]
@@ -43,6 +43,10 @@ class AgentState(TypedDict):
     max_validation_attempts: int
     final_output: Optional[str]
     # Messages for agent communication
-    messages: List[Dict[str, Any]]
+    messages: Annotated[List[Dict[str, Any]], "add_messages"]
     # Error handling
     errors: List[str]
+    # Notion database context - CRITICAL ADDITIONS
+    database_id_map: Optional[List[Dict[str, str]]]  # Changed to list of dicts for proper structure
+    database_name_map: Optional[Dict[str, str]]  # Name to ID mapping
+    pending_db_resolution: Optional[str]  # For tracking which database we're resolving

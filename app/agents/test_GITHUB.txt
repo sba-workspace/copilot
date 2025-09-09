@@ -92,3 +92,75 @@ test_queries = [
         "query": "List all closed pull requests",
         "description": "List closed PRs"
     }
+
+## NOTION TEST CASES
+
+# Database Operations
+[
+    {
+        "query": "List all databases in my Notion workspace",
+        "description": "List all Notion databases"
+    },
+    {
+        "query": "Find databases related to 'project management'",
+        "description": "Search for specific databases"
+    },
+    {
+        "query": "Get details of the database with ID 'abc123'",
+        "description": "Get specific database details"
+    },
+    {
+        "query": "Query the 'Tasks' database for open items assigned to me",
+        "description": "Query database with filters"
+    }
+]
+
+# Page Operations
+[
+    {
+        "query": "Get details of the page with ID 'def456'",
+        "description": "Get specific page details"
+    },
+    {
+        "query": "Update the page with ID 'def456' to set the status to 'Completed'",
+        "description": "Update page properties"
+    },
+    {
+        "query": "Create a new page in the 'Tasks' database with title 'Review documentation' and priority 'High'",
+        "description": "Create new page with properties"
+    }
+]
+
+# Search Operations
+[
+    {
+        "query": "Search for pages about 'Q3 planning'",
+        "description": "Search for specific content"
+    },
+    {
+        "query": "Find all pages mentioning 'budget' in my workspace",
+        "description": "Search with keyword"
+    }
+]
+
+## MIXED SERVICE TEST CASES
+
+# GitHub + Notion Integration
+[
+    {
+        "query": "Find all open GitHub issues and create a Notion page for each in my 'Tasks' database",
+        "description": "Sync GitHub issues to Notion"
+    },
+    {
+        "query": "Search for Notion pages about 'bug fixes' and create GitHub issues for each",
+        "description": "Sync Notion pages to GitHub"
+    },
+    {
+        "query": "List all GitHub pull requests and create a summary page in my Notion 'Development' database",
+        "description": "Create summary report"
+    },
+    {
+        "query": "Get the details of GitHub issue #123 and create a Notion page with the same information",
+        "description": "Transfer issue details"
+    }
+]

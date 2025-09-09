@@ -11,13 +11,14 @@ from app.agents.executor import task_executor
 from app.agents.validator import execution_checker, should_continue_execution, output_validator, should_retry_execution
 from app.agents.formatter import response_formatter
 from app.tools.github_tools import get_github_tools
+from app.tools.notion_tools import get_notion_tools
 from langchain_google_genai import ChatGoogleGenerativeAI
 import logging
 os.environ["LANGSMITH_TRACING"] = "true"
 
 logger = logging.getLogger(__name__)
 
-class GitHubAgentWorkflow:
+class MultiServiceAgentWorkflow:
     def __init__(self, llm_model: str = "gemini-2.5-flash"):
         self.llm = ChatGoogleGenerativeAI(
             model=llm_model,
@@ -26,8 +27,13 @@ class GitHubAgentWorkflow:
             timeout=None,
             max_retries=2,
         )
+        # Initialize both GitHub and Notion tools
         self.github_tools = get_github_tools()
-        self.tool_map = {tool.name.lower(): tool for tool in self.github_tools}
+        self.notion_tools = get_notion_tools()
+        
+        # Combine tools from both services
+        all_tools = self.github_tools + self.notion_tools
+        self.tool_map = {tool.name.lower(): tool for tool in all_tools}
         self.env_repo_url = os.getenv("GITHUB_REPO_URL")
         self.workflow = self._create_workflow()
     
@@ -78,64 +84,50 @@ class GitHubAgentWorkflow:
         return workflow.compile()
     
     def run(self, user_query: str) -> Dict[str, Any]:
-        """Run the complete workflow without requiring repo URL in query"""
-        logger.info(f"Starting GitHub workflow for query: {user_query}")
+        """Run the complete workflow supporting both GitHub and Notion"""
+        logger.info(f"Starting multi-service workflow for query: {user_query}")
         env_repo_id = os.getenv("GITHUB_REPO_URL")
-
-        if not env_repo_id:
-            logger.error("GITHUB_REPO_URL environment variable not set")
+        
+        # Check if Notion API key is set
+        notion_api_key = os.getenv("NOTION_API_KEY")
+        has_notion = notion_api_key is not None and notion_api_key.strip() != ""
+        
+        # Check if GitHub repo is configured
+        has_github = bool(os.getenv("GITHUB_REPO_URL"))
+        
+        # If the query is clearly about GitHub but GitHub isn't configured
+        if not has_github and any(word in user_query.lower() for word in ["github", "issue", "pr", "pull request", "repository", "repo"]):
             return {
                 "success": False,
-                "response": "GitHub repository URL not configured. Please set GITHUB_REPO_URL environment variable.",
+                "response": "GitHub integration is not configured. Please set the GITHUB_REPO_URL environment variable to use GitHub functionality.",
+                "services_available": {"github": False, "notion": has_notion},
                 "execution_plan": {},
                 "task_results": {},
                 "execution_status": {},
-                "errors": ["GitHub repository URL not configured"],
-                "messages": [],
+                "errors": ["GITHUB_REPO_URL not configured"],
+                "messages": [{"type": "human", "content": user_query}],
                 "repo_info": {}
             }
         
-        # Parse the repo identifier (format: owner/repo)
-        repo_parts = env_repo_id.split('/')
-        if len(repo_parts) != 2:
-            logger.error(f"Invalid repository format in GITHUB_REPO_URL: {env_repo_id}. Expected format: owner/repo")
-            return {
-                "success": False,
-                "response": f"Invalid GitHub repository format: {env_repo_id}. Expected format: owner/repo",
-                "errors": [f"Invalid GitHub repository format: {env_repo_id}"],
-                "execution_plan": {},
-                "task_results": {},
-                "execution_status": {},
-                "messages": [],
-                "repo_info": {}
-            }
-        
-        repo_owner = repo_parts[0]
-        repo_name = repo_parts[1]
-        
-        # Set GITHUB_REPOSITORY for GitHub tools (they expect this format)
-        repo_full_name = f"{repo_owner}/{repo_name}"
-        os.environ["GITHUB_REPOSITORY"] = repo_full_name
-        
-        # Initialize state with environment repo info
+        # Initialize state with environment info
         initial_state = {
+            "services_available": {
+                "github": has_github,
+                "notion": has_notion
+            },
             "user_query": user_query,
-            "github_repo_url": f"https://github.com/{repo_full_name}",
+            "github_repo_url": None,
             "execution_plan": {},
             "current_service": None,
             "current_tool": None,
             "current_task_key": None,
             "task_queue": [],
             "current_task_index": 0,
-            "repo_owner": repo_owner,
-            "repo_name": repo_name,
+            "repo_owner": None,
+            "repo_name": None,
             "repo_instance": None,
             "task_results": {},
-            "shared_context": {
-                "repo_owner": repo_owner,
-                "repo_name": repo_name,
-                "repo_url": f"https://github.com/{repo_full_name}"
-            },
+            "shared_context": {},
             "execution_status": {},
             "is_complete": False,
             "validation_attempts": 0,
@@ -144,9 +136,33 @@ class GitHubAgentWorkflow:
             "messages": [{"type": "human", "content": user_query}],
             "errors": []
         }
-        # Create GitHub tools with the specific repository
-        self.github_tools = get_github_tools(repo=repo_full_name)
-        self.tool_map = {tool.name.lower(): tool for tool in self.github_tools}
+        
+        # Set GitHub repo info if available
+        if env_repo_id:
+            # Parse the repo identifier (format: owner/repo)
+            repo_parts = env_repo_id.split('/')
+            if len(repo_parts) == 2:
+                repo_owner = repo_parts[0]
+                repo_name = repo_parts[1]
+                # Set GITHUB_REPOSITORY for GitHub tools (they expect this format)
+                repo_full_name = f"{repo_owner}/{repo_name}"
+                os.environ["GITHUB_REPOSITORY"] = repo_full_name
+                
+                initial_state.update({
+                    "github_repo_url": f"https://github.com/{repo_full_name}",
+                    "repo_owner": repo_owner,
+                    "repo_name": repo_name,
+                    "shared_context": {
+                        "repo_owner": repo_owner,
+                        "repo_name": repo_name,
+                        "repo_url": f"https://github.com/{repo_full_name}"
+                    }
+                })
+                # Create GitHub tools with the specific repository
+                self.github_tools = get_github_tools(repo=repo_full_name)
+                # Rebuild tool map with updated GitHub tools
+                all_tools = self.github_tools + self.notion_tools
+                self.tool_map = {tool.name.lower(): tool for tool in all_tools}
         
         try:
             final_state = self.workflow.invoke(initial_state)
@@ -176,3 +192,6 @@ class GitHubAgentWorkflow:
                 "messages": [],
                 "repo_info": {}
             }
+
+# Keep the old class name for backward compatibility
+GitHubAgentWorkflow = MultiServiceAgentWorkflow

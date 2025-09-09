@@ -14,6 +14,9 @@ from langchain.chat_models import init_chat_model
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 os.environ["LANGSMITH_TRACING"] = "true"
+os.environ["LANGSMITH_PROJECT_NAME"]="AI_TASK_COPILOT"
+
+
 from dotenv import load_dotenv
 load_dotenv()  # Load environment variables from .env file
 
