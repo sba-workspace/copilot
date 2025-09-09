@@ -6,13 +6,14 @@ from langgraph.graph import StateGraph, START, END
 
 # Import our modularized components
 from app.agents.utils import AgentState
-from app.agents.planner import planner_agent
-from app.agents.executor import task_executor
+from app.agents.planner_mcp import mcp_planner_agent
+from app.agents.executor_mcp import mcp_task_executor
 from app.agents.validator import execution_checker, should_continue_execution, output_validator, should_retry_execution
 from app.agents.formatter import response_formatter
-from app.tools.github_tools import get_github_tools
-from app.tools.notion_tools import get_notion_tools
+from app.mcp.mcp_client import initialize_mcp_clients
 from langchain_google_genai import ChatGoogleGenerativeAI
+from dotenv import load_dotenv
+load_dotenv()
 import logging
 os.environ["LANGSMITH_TRACING"] = "true"
 
@@ -27,13 +28,7 @@ class MultiServiceAgentWorkflow:
             timeout=None,
             max_retries=2,
         )
-        # Initialize both GitHub and Notion tools
-        self.github_tools = get_github_tools()
-        self.notion_tools = get_notion_tools()
-        
-        # Combine tools from both services
-        all_tools = self.github_tools + self.notion_tools
-        self.tool_map = {tool.name.lower(): tool for tool in all_tools}
+        # MCP-based architecture - no direct tool initialization needed
         self.env_repo_url = os.getenv("GITHUB_REPO_URL")
         self.workflow = self._create_workflow()
     
@@ -42,16 +37,12 @@ class MultiServiceAgentWorkflow:
         workflow = StateGraph(AgentState)
         
         # Add nodes
-        workflow.add_node("planner_agent", lambda state: planner_agent(
+        workflow.add_node("planner_agent", lambda state: mcp_planner_agent(
             state, 
             self.llm,
             self.env_repo_url
         ))
-        workflow.add_node("task_executor", lambda state: task_executor(
-            state, 
-            self.tool_map,
-            self.env_repo_url
-        ))
+        workflow.add_node("task_executor", mcp_task_executor)
         workflow.add_node("execution_checker", execution_checker)
         workflow.add_node("output_validator", output_validator)
         workflow.add_node("response_formatter", lambda state: response_formatter(
@@ -158,11 +149,8 @@ class MultiServiceAgentWorkflow:
                         "repo_url": f"https://github.com/{repo_full_name}"
                     }
                 })
-                # Create GitHub tools with the specific repository
-                self.github_tools = get_github_tools(repo=repo_full_name)
-                # Rebuild tool map with updated GitHub tools
-                all_tools = self.github_tools + self.notion_tools
-                self.tool_map = {tool.name.lower(): tool for tool in all_tools}
+                # Initialize MCP clients with repository context
+                # Repository information will be passed through environment variables
         
         try:
             final_state = self.workflow.invoke(initial_state)
