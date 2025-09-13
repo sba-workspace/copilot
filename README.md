@@ -1,6 +1,6 @@
 # AI Task Copilot
 
-An intelligent task management system that integrates with GitHub to streamline your development workflow.
+An intelligent task management system that integrates with GitHub and Notion to streamline your development workflow.
 
 ## Features
 
@@ -8,3 +8,8 @@ An intelligent task management system that integrates with GitHub to streamline 
 - Issue and PR management
 - File access and manipulation
 - Repository search capabilities
+
+### Notion Integration
+- Database operations (list, query, create pages)
+- Page operations (get, update)
+- Search across Notion workspace

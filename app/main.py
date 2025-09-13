@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os
-from app.agents.parent_agent import GitHubAgentWorkflow
+from app.agents.parent_agent import MultiServiceAgentWorkflow
 from dotenv import load_dotenv
 
 load_dotenv()  # Load environment variables from .env file
@@ -19,15 +19,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Check required environment variables
-required_env_vars = ["GITHUB_API_TOKEN", "GITHUB_REPOSITORY", "GOOGLE_API_KEY"]
-missing_vars = [var for var in required_env_vars if not os.getenv(var)]
+# Check required environment variables for MCP
+required_env_vars = ["GOOGLE_API_KEY"]  # Core requirement
+github_vars = ["GITHUB_TOKEN", "GITHUB_REPOSITORY"] 
+notion_vars = ["NOTION_API_KEY"]
 
-if missing_vars:
-    raise RuntimeError(f"Missing required environment variables: {', '.join(missing_vars)}")
+missing_core = [var for var in required_env_vars if not os.getenv(var)]
+if missing_core:
+    raise RuntimeError(f"Missing required environment variables: {', '.join(missing_core)}")
 
-# Initialize the GitHub agent workflow
-workflow = GitHubAgentWorkflow()
+# Check service-specific variables
+has_github = all(os.getenv(var) for var in github_vars)
+has_notion = all(os.getenv(var) for var in notion_vars)
+
+if not has_github and not has_notion:
+    raise RuntimeError("At least one service (GitHub or Notion) must be configured")
+
+print(f"Services enabled - GitHub: {has_github}, Notion: {has_notion}")
+
+# Initialize the MCP-enabled multi-service agent workflow
+workflow = MultiServiceAgentWorkflow()
 
 class ChatRequest(BaseModel):
     query: str
@@ -35,9 +46,9 @@ class ChatRequest(BaseModel):
 @app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
     """
-    Chat endpoint for GitHub operations.
-    The user provides a natural language query, and the agent handles it.
-    The repository is specified in the environment, so no repo URL is needed in the request.
+    MCP-enabled chat endpoint for GitHub and Notion operations.
+    The user provides a natural language query, and the agent routes it to appropriate MCP servers.
+    Services are configured via environment variables.
     """
     try:
         result = workflow.run(request.query)

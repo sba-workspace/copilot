@@ -1,93 +1,34 @@
-# Python
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
 
-# Virtual Environment
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Virtual environments
 venv/
 env/
 ENV/
-.env
-.venv
-env.bak/
-venv.bak/
-task-copilot.2025-08-08.private-key.pem
 
-
-# IDE
-.idea/
+# IDE files
 .vscode/
-*.swp
-*.swo
+.idea/
+
+# OS files
 .DS_Store
+Thumbs.db
 
 # Logs
 *.log
-logs/
-log/
 
-# Local development settings
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# Coverage reports
-htmlcov/
-.tox/
+# Test coverage
 .coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# pytest
-.pytest_cache/
-
-# Jupyter Notebook
-.ipynb_checkpoints
+htmlcov/
 
 # Distribution / packaging
-.Python
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
-*.egg 
-
-#files
-agents.test_GITHUB.txt
