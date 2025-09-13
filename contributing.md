@@ -1,0 +1,1 @@
+# Contributing Guidelines\n\nPlease follow these guidelines when contributing to the project.
